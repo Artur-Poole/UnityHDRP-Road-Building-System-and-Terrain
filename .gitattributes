@@ -1,0 +1,2 @@
+*.bytes filter=lfs diff=lfs merge=lfs -text
+*.sbsar filter=lfs diff=lfs merge=lfs -text
