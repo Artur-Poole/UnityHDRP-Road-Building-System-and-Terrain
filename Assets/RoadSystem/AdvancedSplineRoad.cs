@@ -25,6 +25,7 @@ public class AdvancedSplineRoad : MonoBehaviour
     [SerializeField] MeshFilter m_meshFilter;
 
     [Header("Road Settings")]
+    [SerializeField] List<RoadSettings> m_roadSettings;
     [SerializeField][UnityEngine.Range(0f, 5f)] private float m_width;
     [SerializeField] int resolution;
     [SerializeField] float pointsPerMeter = 1f;
@@ -132,8 +133,32 @@ public class AdvancedSplineRoad : MonoBehaviour
 
         for (int j = 0; j < m_splineSampler.NumSplines; j++)
         {
-            // 1) grab the Spline object for this index (you might need to adjust to your API)
-            Spline spline = m_splineSampler.GetSplines(j);
+
+            float i_roadWidth;
+            float i_roadDepth;
+            float i_sideWidth;
+            float i_sideHeight;
+            // get road data....
+            if (j < m_roadSettings.Count)
+            {
+                i_roadWidth = m_roadSettings[j].RoadWidth;
+                i_roadDepth = m_roadSettings[j].RoadDepth;
+                i_sideHeight = m_roadSettings[j].SideWalkHeight;
+                i_sideWidth = m_roadSettings[j].SideWalkWidth;
+            }
+            else
+            {
+                i_roadWidth = m_width;
+                i_roadDepth = m_RoadDepth;
+                i_sideHeight = SidewalkHeight;
+                i_sideWidth = SidewalkTotalWidth;
+                m_roadSettings.Add(new RoadSettings(i_roadDepth, i_roadWidth, i_sideHeight, i_sideWidth));
+            }
+
+
+
+                // 1) grab the Spline object for this index (you might need to adjust to your API)
+                Spline spline = m_splineSampler.GetSplines(j);
 
             // 2) measure its length in world-space
             float length = SplineUtility.CalculateLength(spline, transform.localToWorldMatrix);
@@ -147,17 +172,20 @@ public class AdvancedSplineRoad : MonoBehaviour
             for (int i = 0; i < sampleCount; i++)
             {
                 float t = deltaT * i;
-                m_splineSampler.SampleSplineWidth(j, t, m_width, out p1, out p2);
+                m_splineSampler.SampleSplineWidth(j, t, m_roadSettings[j].RoadWidth, out p1, out p2);
                 m_vertsP1.Add(transform.InverseTransformPoint(p1)); // say left side...
                 m_vertsP2.Add(transform.InverseTransformPoint(p2)); // say right side...
 
-                m_splineSampler.SampleSplineWidth(j, t, m_width + SidewalkTotalWidth, out p1, out p2);
+                m_splineSampler.SampleSplineWidth(j, t, m_roadSettings[j].RoadWidth + m_roadSettings[j].SideWalkWidth, out p1, out p2);
                 m_vertsO1.Add(transform.InverseTransformPoint(p1)); // say left side...
                 m_vertsO2.Add(transform.InverseTransformPoint(p2)); // say right side...
             }
         }
     }
 
+    /// <summary>
+    /// Master BuildMesh function... 
+    /// </summary>
     private void BuildMesh()
     {
         Mesh m = new Mesh();
@@ -204,30 +232,26 @@ public class AdvancedSplineRoad : MonoBehaviour
 
     private void GenerateNormalRoadsVertsTrisUVs(int offset, float uvOffset, List<Vector3> verts, List<int> sidewalkTris, List<int> tris, List<Vector2> uvs)
     {
-        // prefixSum to walk through m_vertsP1/m_vertsP2:
-        int prefix = 0;
+        
+        int splineIndex = 0;
 
         for (int j = 0; j < m_splineSampler.NumSplines; j++)
         {
             int count = _samplesPerSpline[j];      // how many samples this spline got
             int segments = count - 1;            // how many quads we'll build
 
-            // now build one quad per segment:
+            // Iterate through knots of spline...
             for (int i = 1; i < count; i++)
             {
 
-
-                // get your four corner points from the precomputed lists:
-                int vi = prefix + i;
+                // get left and right previous and current
+                int vi = splineIndex + i;
                 Vector3 p1 = m_vertsP1[vi - 1];
                 Vector3 p2 = m_vertsP2[vi - 1];
                 Vector3 p3 = m_vertsP1[vi];
                 Vector3 p4 = m_vertsP2[vi];
 
-                //// exactly the same indexing math you had, but dynamic:
-                //int baseTri = 4 * (segments * j + (i - 1));
-
-                // **NEW**: anchor your tris at the next free index
+                // anchor on vert count for Triangles Indexing
                 int vBase = verts.Count;
 
                 verts.AddRange(new[] { p1, p2, p3, p4 });
@@ -243,7 +267,7 @@ public class AdvancedSplineRoad : MonoBehaviour
                     vBase + 0
                 });
 
-                // UV along the length of each segment:
+                // UV along the length of each segment -- UV scale is off
                 float segmentLen = Vector3.Distance(p1, p3) / 4f;
                 float uvNext = uvOffset + segmentLen;
                 uvs.AddRange(new[]
@@ -299,20 +323,20 @@ public class AdvancedSplineRoad : MonoBehaviour
 
             }
 
-            int startIdx = prefix;          // first sample of this spline
-            int endIdx = prefix + count - 1;  // last sample
+            int startIdx = splineIndex;          // first sample of this spline
+            int endIdx = splineIndex + count - 1;  // last sample
 
             Vector3 p1s = m_vertsP1[startIdx];
             Vector3 p2s = m_vertsP2[startIdx];
             Vector3 p1e = m_vertsP1[endIdx];
             Vector3 p2e = m_vertsP2[endIdx];
 
-            // for the start cap, direction from start-left→start-right
+            // for the start cap, direction from start-left->start-right
             Vector3 forwardS = -1 * (p2s - p1s).normalized;
             Vector3 leftDirS = Vector3.Cross(Vector3.up, forwardS).normalized;
             Vector3 rightDirS = -leftDirS;
 
-            // for the end cap, direction from end-left→end-right
+            // for the end cap, direction from end-left->end-right
             Vector3 forwardE = (p2e - p1e).normalized;
             Vector3 leftDirE = Vector3.Cross(Vector3.up, forwardE).normalized;
             Vector3 rightDirE = -leftDirE;
@@ -329,7 +353,7 @@ public class AdvancedSplineRoad : MonoBehaviour
             BuildBigCap(verts, sidewalkTris, uvs, m_vertsO1[startIdx], m_vertsO2[startIdx] );
             // END BIG CAP
             BuildBigCap(verts, sidewalkTris, uvs, m_vertsO2[endIdx], m_vertsO1[endIdx] );
-            prefix += count;
+            splineIndex += count;
         }
     }
 
@@ -356,11 +380,13 @@ public class AdvancedSplineRoad : MonoBehaviour
             //new Vector2(0, 1f), // v1
             //new Vector2(1, 0f), // v2
             //new Vector2(1, 1f)  // v3
-            /* left-top,  left-bottom */  new Vector2(0,      0),  new Vector2(0,      1),
+            /* left-top,  left-bottom */  new Vector2(0, 0),  new Vector2(0, 1),
             /* right-bottom, right-top */ new Vector2(segLen,1),  new Vector2(segLen,0)
         });
     }
 
+    // REVISION NEEDED -- Requires independent Verts for UV faces otherwise get mixed UV's along different faces
+    // Reason that side faces of roads have a gradient from the material to complete blackness... side face shares UV normal
     private void BuildUnderRoad(int offset, float uvOffset, List<Vector3> verts, List<int> sidewalkTris, List<int> tris, List<Vector2> uvs, Vector3 i0, Vector3 i1, Vector3 o0, Vector3 o1)
     {
         float depth = m_RoadDepth;
@@ -391,9 +417,6 @@ public class AdvancedSplineRoad : MonoBehaviour
             new Vector2(uvOffset,0), new Vector2(uvOffset,1),
             new Vector2(uvOffset,1), new Vector2(uvOffset,0),
 
-            //new Vector2(uvOffset,0), new Vector2(uvOffset,1),
-            //new Vector2(uvOffset,1), new Vector2(uvOffset,0)
-
             // next ring (same order)
             new Vector2(uvOffset+segLen,0), new Vector2(uvOffset+segLen,1),
             new Vector2(uvOffset+segLen,1), new Vector2(uvOffset+segLen,0)
@@ -414,9 +437,6 @@ public class AdvancedSplineRoad : MonoBehaviour
             new Vector2(0,0), new Vector2(1,0),
             new Vector2(0,1), new Vector2(1,1)
         });
-
-
-        //uvOffset += segLen;
     }
 
     void BuildSidewalk(List<Vector3> verts, List<int> tris, List<Vector2> uvs, float uvOffset, Vector3 i0, Vector3 i1, Vector3 o0, Vector3 o1)
@@ -446,7 +466,7 @@ public class AdvancedSplineRoad : MonoBehaviour
             //b+1,b+5,b+2,  b+2,b+5,b+6         // sidewalk deck
         });
 
-        // simple UVs (stretch-along-length)
+        // simple UVs (stretch-along-length) -- Revise UV not scaled properly
         uvs.AddRange(new[]{
 
             // inner ring
@@ -513,20 +533,6 @@ public class AdvancedSplineRoad : MonoBehaviour
     }
 
 
-
-    /// <summary>
-    /// Idea for how to get GenerateIntersectionsvertstris whaterver... 
-    /// Sidewalk is almost semi independent from the road.... i kinda hope it will work... 
-    /// but when we generate the circle we also generate the circle stuff for the the sidewalk so from width junction 1 to width junction 2 and from width+sidwalkwidth j1 to j2... this will create our curves
-    /// // from there its the same stuff that we did with the rest of sidewalk... we just connect the set of vertices.. and set their tris/uvs
-    /// If there is a small gap always could add a small tollerance for overlap. 
-    /// needs to connect to the curve graphs... god hope this works would be sick 
-    /// </summary>
-    /// <param name="center"></param>
-    /// <param name="verts"></param>
-    /// <param name="trisB"></param>
-    /// <param name="uvs"></param>
-
     private void GenerateIntersectionsVertsTrisUVs(Vector3 center, List<Vector3> verts, List<int> trisB, List<Vector2> uvs)
     {
         for (int i = 0; i < intersections.Count; i++)
@@ -542,9 +548,9 @@ public class AdvancedSplineRoad : MonoBehaviour
             {
                 int splineIndex = junction.splineIndex;
                 float t = junction.knotIndex == 0 ? 0f : 1f;
-                m_splineSampler.SampleSplineWidth(splineIndex, t, m_width, out Vector3 p1, out Vector3 p2);
-                m_splineSampler.SampleSplineWidth(splineIndex, t, m_width + SidewalkTotalWidth, out Vector3 p1o, out Vector3 p2o);
 
+                m_splineSampler.SampleSplineWidth(splineIndex, t, m_roadSettings[splineIndex].RoadWidth, out Vector3 p1, out Vector3 p2);
+                m_splineSampler.SampleSplineWidth(splineIndex, t, m_roadSettings[splineIndex].RoadWidth + m_roadSettings[splineIndex].SideWalkWidth, out Vector3 p1o, out Vector3 p2o);
                 if (junction.knotIndex == 0)
                 {
                     intersection.AddJunctionEdge(new JunctionEdge(p2, p1, p2o, p1o));
@@ -678,11 +684,6 @@ public class AdvancedSplineRoad : MonoBehaviour
                     );
                 }
 
-
-
-                
-
-
                 BuildUnderRoad(0, 0f, verts, trisB, trisB, uvs,
                     //curvePoints[j - 1], curvePoints[j],   // inner R prev, next
                     //curveOuterPoints[j - 1], curveOuterPoints[j]  // outer R prev, next
@@ -703,7 +704,6 @@ public class AdvancedSplineRoad : MonoBehaviour
     private bool DoVectorsCrossRoad(Vector3 pointA, Vector3 pointB)
     {
         if (intersections == null ) return false;
-
 
         // so we care only if we are going form an outer to an outer and an inner top an inner
         if (m_vertsP1.Contains(pointA) && m_vertsP2.Contains(pointB))
