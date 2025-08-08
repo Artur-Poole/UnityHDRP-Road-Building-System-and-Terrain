@@ -1,4 +1,4 @@
-In Development... Read at your own risk.
+Side project in Development...
 
 3 systems in test:
 - "DayNite" - Day and Night, moves the sun transform on a day night cycle and attempts to match the sun's angle based on season for year round system
