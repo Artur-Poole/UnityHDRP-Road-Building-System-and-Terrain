@@ -152,7 +152,7 @@ public class AdvancedSplineRoad : MonoBehaviour
                 i_roadDepth = m_RoadDepth;
                 i_sideHeight = SidewalkHeight;
                 i_sideWidth = SidewalkTotalWidth;
-                m_roadSettings.Add(new RoadSettings(i_roadDepth, i_roadWidth, i_sideHeight, i_sideWidth));
+                m_roadSettings.Add(new RoadSettings(i_roadDepth, i_roadWidth, true, i_sideHeight, i_sideWidth));
             }
 
 
@@ -181,6 +181,15 @@ public class AdvancedSplineRoad : MonoBehaviour
                 m_vertsO2.Add(transform.InverseTransformPoint(p2)); // say right side...
             }
         }
+
+        // Cleaner function for when Splines are removed.. to remove corresponding 
+        int diff = m_splineSampler.NumSplines - m_roadSettings.Count;
+        while (diff < 0)
+        {
+            m_roadSettings.Remove(m_roadSettings[m_roadSettings.Count - 1]);
+            diff++;
+        }
+
     }
 
     /// <summary>
@@ -303,18 +312,27 @@ public class AdvancedSplineRoad : MonoBehaviour
                     new Vector2(1,   1)
                 });
 
-                BuildSidewalk(verts, sidewalkTris, uvs, uvOffset,
-                     m_vertsP1[vi], m_vertsP1[vi - 1],   // inner L next, prev
-                     m_vertsO1[vi], m_vertsO1[vi - 1]
-                    );
-                BuildSidewalk(verts, sidewalkTris, uvs, uvOffset,
-                    m_vertsP2[vi - 1], m_vertsP2[vi],   // inner R prev, next
-                    m_vertsO2[vi - 1], m_vertsO2[vi]);  // outer R prev, next
+                Debug.Log($"RoadSettingsCount: {m_roadSettings.Count}, j: {j}");
 
+
+
+                if (j < m_roadSettings.Count && m_roadSettings[j].HasSidewalk == true)
+                {
+                    BuildSidewalk(verts, sidewalkTris, uvs, uvOffset,
+                        m_vertsP1[vi], m_vertsP1[vi - 1],   // inner L next, prev
+                        m_vertsO1[vi], m_vertsO1[vi - 1], m_roadSettings[j].SideWalkHeight
+                    );
+                    BuildSidewalk(verts, sidewalkTris, uvs, uvOffset,
+                        m_vertsP2[vi - 1], m_vertsP2[vi],   // inner R prev, next
+                        m_vertsO2[vi - 1], m_vertsO2[vi], m_roadSettings[j].SideWalkHeight);  // outer R prev, next
+
+
+
+                }
 
                 BuildUnderRoad(offset, uvOffset, verts, sidewalkTris, tris, uvs,
-                      m_vertsP1[vi], m_vertsP1[vi - 1],   // inner L next, prev
-                     m_vertsO1[vi], m_vertsO1[vi - 1]);
+                    m_vertsP1[vi], m_vertsP1[vi - 1],   // inner L next, prev
+                    m_vertsO1[vi], m_vertsO1[vi - 1]);
 
                 BuildUnderRoad(offset, uvOffset, verts, sidewalkTris, tris, uvs,
                     m_vertsP2[vi - 1], m_vertsP2[vi],   // inner R prev, next
@@ -342,12 +360,12 @@ public class AdvancedSplineRoad : MonoBehaviour
             Vector3 rightDirE = -leftDirE;
 
             //// START sidewalk caps
-            BuildRoadCap(p1s, p1s + forwardS * SidewalkTotalWidth, uvOffset, verts, sidewalkTris, uvs);  // left sidewalk start
-            BuildRoadCap(p2s - forwardS * SidewalkTotalWidth, p2s, uvOffset, verts, sidewalkTris, uvs);  // right sidewalk start
+            BuildRoadCap(p1s, p1s + forwardS * m_roadSettings[j].SideWalkWidth, uvOffset, verts, sidewalkTris, uvs, m_roadSettings[j].SideWalkHeight);  // left sidewalk start
+            BuildRoadCap(p2s - forwardS * m_roadSettings[j].SideWalkWidth, p2s, uvOffset, verts, sidewalkTris, uvs, m_roadSettings[j].SideWalkHeight);  // right sidewalk start
 
             //// END sidewalk caps
-            BuildRoadCap(p1e + forwardS * SidewalkTotalWidth, p1e, uvOffset, verts, sidewalkTris, uvs);  // left sidewalk end
-            BuildRoadCap(p2e, p2e - forwardS * SidewalkTotalWidth, uvOffset, verts, sidewalkTris, uvs);  // right sidewalk end
+            BuildRoadCap(p1e + forwardS * m_roadSettings[j].SideWalkWidth, p1e, uvOffset, verts, sidewalkTris, uvs, m_roadSettings[j].SideWalkHeight);  // left sidewalk end
+            BuildRoadCap(p2e, p2e - forwardS * m_roadSettings[j].SideWalkWidth, uvOffset, verts, sidewalkTris, uvs, m_roadSettings[j].SideWalkHeight);  // right sidewalk end
 
             // START BIG CAP
             BuildBigCap(verts, sidewalkTris, uvs, m_vertsO1[startIdx], m_vertsO2[startIdx] );
@@ -439,10 +457,11 @@ public class AdvancedSplineRoad : MonoBehaviour
         });
     }
 
-    void BuildSidewalk(List<Vector3> verts, List<int> tris, List<Vector2> uvs, float uvOffset, Vector3 i0, Vector3 i1, Vector3 o0, Vector3 o1)
+    void BuildSidewalk(List<Vector3> verts, List<int> tris, List<Vector2> uvs, float uvOffset, Vector3 i0, Vector3 i1, Vector3 o0, Vector3 o1, float height = -1f)
     {
 
-        float h = SidewalkHeight;
+        float h = height == -1f ? SidewalkHeight : height;
+
         float segLen = Vector3.Distance(i0, i1) / 4f;
         //float segLen2 = Vector3.Distance(i0, i1) / 4f;
 
@@ -501,9 +520,9 @@ public class AdvancedSplineRoad : MonoBehaviour
         });
     }
 
-    void BuildRoadCap(Vector3 p1, Vector3 p2, float uvOffset, List<Vector3> verts, List<int> tris, List<Vector2> uvs)
+    void BuildRoadCap(Vector3 p1, Vector3 p2, float uvOffset, List<Vector3> verts, List<int> tris, List<Vector2> uvs, float height = -1f)
     {
-        float h = SidewalkHeight;
+        float h = height == -1f ? SidewalkHeight : height;
 
         float segmentLen = Vector3.Distance(p1, p2);
 
@@ -578,6 +597,13 @@ public class AdvancedSplineRoad : MonoBehaviour
             Vector3 b;
             Vector3 a;
             BezierCurve curve;
+
+            /*
+             * TO DO...
+             * In order to have Sidewalks be dynamic.. buildSidewalk needs a height...
+             * Which means this function needs to know if a curvePoint is a m_p1/2 or m_o1/2 point... and have refrence too the related RoadSettings...
+             * 
+             */
 
             for (int j = 1; j <= juncEdges.Count; j++)
             {
@@ -660,6 +686,9 @@ public class AdvancedSplineRoad : MonoBehaviour
                 uvs.Add(new Vector2(vertA.z, vertA.x));
                 uvs.Add(new Vector2(vertB.z, vertB.x));
             }
+
+
+
 
             for (int j = 1; j <= curvePoints.Count / 2; j++)
             {
