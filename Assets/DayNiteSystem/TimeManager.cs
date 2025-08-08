@@ -62,6 +62,7 @@ public class TimeManager : MonoBehaviour
 
     void Update()
     {
+        //Debug.Log("Time update ");
 
         if (hasEnabledSunMangerListeners == false && SunManager.Instance != null)
         {
@@ -86,6 +87,7 @@ public class TimeManager : MonoBehaviour
             lastNotifiedHour = new DateTime(
                 now.Year, now.Month, now.Day, now.Hour, 0, 0
             );
+            //Debug.Log("Invoking min change");
             OnMinuteChanged?.Invoke(now);
         }
 

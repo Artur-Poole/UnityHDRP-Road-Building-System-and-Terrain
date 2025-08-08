@@ -42,9 +42,11 @@ public class SunManager : MonoBehaviour
     private Quaternion _lightTargetRot;
     private Quaternion _containerTargetRot;
 
-    private float sunDesiredIntensity = 120000f;
+    private float sunDesiredIntensity = 85000f;
     //private float enviroLightingIntensityTarget = 1f;
     //private float enviroReflectionsIntensityTarget = 1f;
+
+    private bool attached = false;
 
     void Awake()
     {
@@ -80,7 +82,13 @@ public class SunManager : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        
+
+        if ( attached == false) 
+        {
+            OnEnable();
+            attached = true;
+        }
+
         // blending rotations... 
         sunLight.transform.localRotation = Quaternion.Lerp(
                                                 sunLight.transform.localRotation,
@@ -92,7 +100,8 @@ public class SunManager : MonoBehaviour
                                                 _containerTargetRot,
                                                 smoothSpeed * Time.deltaTime
                                             );
-        sunLight.intensity = Mathf.Lerp(sunLight.intensity, sunDesiredIntensity, smoothSpeed * Time.deltaTime * TimeManager.Instance.speedMultiplier);
+
+        sunLight.intensity = Mathf.Lerp(sunLight.intensity, sunDesiredIntensity, smoothSpeed * Time.deltaTime);
         
 
         //if (currentPhase == DayPhase.Sunset || currentPhase == DayPhase.Sunrise)
@@ -162,7 +171,7 @@ public class SunManager : MonoBehaviour
 
 
 
-
+        //Debug.Log("Set the points");
 
         if (hourAngle < 0f || hourAngle > 180f) {
             sunDesiredIntensity = 0f;
@@ -170,39 +179,17 @@ public class SunManager : MonoBehaviour
         else
         {
             float normalizedAngle = hourAngle * Mathf.Deg2Rad;
+            
 
-            float baseIntensity = 100000f;
+            float baseIntensity = 85000f;
+            float floor         = 15000f;
 
-            float scaledIntensity = baseIntensity * normalizedAngle;
+            float scaledIntensity = baseIntensity * Mathf.Sin(normalizedAngle);
+
+            if (scaledIntensity > floor) scaledIntensity = floor;
 
             sunDesiredIntensity = scaledIntensity;
         }
-
-
-
-
-
-        //float sunRiseSetRange = 20f; // Example 20 degrees both directions considered sunset/sunrise
-        //if (hourAngle < 0f || hourAngle > 180f)
-        //{
-        //    sunDesiredIntensity = 0f;
-        //}
-        //else
-        //{
-        //    float scale = 1000f;
-        //    if (hourAngle > 0f && hourAngle < sunRiseSetRange)
-        //    {
-        //        sunDesiredIntensity = hourAngle * scale;
-        //    }
-        //    else if (hourAngle >= 180f - sunRiseSetRange)
-        //    {
-        //        sunDesiredIntensity = (180 - hourAngle) * scale;
-        //    }
-        //    else
-        //    {
-        //        sunDesiredIntensity = 100000f;
-        //    }
-        //}
 
     }
 
